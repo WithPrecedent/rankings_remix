@@ -58,38 +58,42 @@ INTEGERS = [
     'LSAT 75',
     'LSAT Estimated Median',
     'Average Debt']
-USNEWSWEIGHTS = {
+LOW_IS_HIGH = ['Acceptance Rate']
+USNEWS_WEIGHTS = {
     'Peer Score': 0.25,
     'Practitioner Score': 0.15,
     'GPA Estimated Median': 0.1,
-    'LSAT Estimate Median': 0.125,
+    'LSAT Estimated Median': 0.125,
     'Acceptance Rate': .025,
     'Immediate Employed': 0.04,
     '10-Month Employed': 0.14,
-    'Bar Pass Ratio': 0.02}
-SCALERS = {
-    'MinMax': preprocessing.MinMaxScaler,
-    'Ordinal': preprocessing.OrdinalEncoder,
-    'Normalized': preprocessing.Normalizer}
-FINAL_COLUMNS = [
-    'School',
+    'Bar Pass Ratio': 0.0225}
+CORE_COLUMNS = [
     'Peer Score',
     'Practitioner Score',
     'GPA Estimated Median',
-    'LSAT Estimate Median',
-    'Acceptance Rate',
-    'Immediate Employed',
-    '10-Month Employed',
-    'Bar Pass Ratio',
-    'USNews Rank',
-    'Adjusted USNews Score',
-    'Normalized Rank',
-    'Normalized Score',
-    'MinMax Rank',
-    'MinMax Score',
-    'Ordinal Rank',
-    'Ordinal Score'
-]
+    'LSAT Estimated Median',
+    '10-Month Employed']  
+    
+# FINAL_COLUMNS = [
+#     'School',
+#     'Peer Score',
+#     'Practitioner Score',
+#     'GPA Estimated Median',
+#     'LSAT Estimate Median',
+#     'Acceptance Rate',
+#     'Immediate Employed',
+#     '10-Month Employed',
+#     'Bar Pass Ratio',
+#     'USNews Rank',
+#     'Adjusted USNews Score',
+#     'Normalized Rank',
+#     'Normalized Score',
+#     'MinMax Rank',
+#     'MinMax Score',
+#     'Ordinal Rank',
+#     'Ordinal Score']
+
 def import_rankings_data() -> pd.DataFrame:
     df = pd.read_csv(IMPORTPATH, encoding = 'windows-1252')
     df = df.rename(columns = RENAMES)
@@ -99,6 +103,8 @@ def import_rankings_data() -> pd.DataFrame:
 
 def simplify_lower_ranks(df: pd.DataFrame) -> pd.DataFrame:
     df['USNews Rank'] = df['USNews Rank'].str.split('-').str[0]
+    df['USNews Rank'] = pd.to_numeric(df['USNews Rank'], downcast = 'integer')
+    df = df[df['USNews Rank'] < 112]
     return df
     
 def split_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -109,9 +115,7 @@ def split_columns(df: pd.DataFrame) -> pd.DataFrame:
         df[[low, high]] = df[column].str.split('-', expand = True)
         df[low] = pd.to_numeric(df[low])
         df[high] = pd.to_numeric(df[high])
-        df[f'{column} Estimated Median'] = df[[low, high]].mean(axis = 1)
-        if column in ['LSAT']:
-            df[median] = df[median].round()
+        df[median] = df[[low, high]].mean(axis = 1)
     return df
 
 def force_numerical(df: pd.DataFrame) -> pd.DataFrame:
@@ -127,33 +131,64 @@ def force_numerical(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def compute_bar_ratio(df: pd.DataFrame) -> pd.DataFrame:
-    df['Bar Passage Ratio'] = (
+    df['Bar Pass Ratio'] = (
         df['Bar Pass Rate'] / df['Jurisdiction Bar Pass Rate'])
+    return df
+
+def reverse_values(df: pd.DataFrame) -> pd.DataFrame:
+    for column in LOW_IS_HIGH:
+        df[column] = 1 - df[column]
+    return df
+
+def minmax_scale(df: pd.DataFrame, source: str, destination: str) -> pd.DataFrame:
+    df[destination] = (df[source] - df[source].min()) / (df[source].max() - df[source].min())
+    return df
+
+def ordinal_scale(df: pd.DataFrame, source: str, destination: str) -> pd.DataFrame:
+    df[destination] = df[source].rank(method = 'max')
+    return df
+
+scalers = {
+    'Percentile': minmax_scale,
+    'Ranking': ordinal_scale}
+    
+def scale_columns(df: pd.DataFrame) -> pd.DataFrame:
+    for name, scaler in scalers.items():
+        for column in USNEWS_WEIGHTS.keys():
+            scaled_column = f'{name} {column}'
+            df = scaler(df = df, source = column, destination = scaled_column)
+    return df 
+
+def compute_scores(df: pd.DataFrame) -> pd.DataFrame:   
+    keys = tuple(USNEWS_WEIGHTS.keys())
+    for name in scalers.keys():
+        columns = [col for col in df if col.startswith(name)]
+        columns = [col for col in columns if col.endswith(keys)]
+        score_column = f'{name} Score'
+        weights = list(USNEWS_WEIGHTS.values())
+        df[score_column] = df[columns].mul(weights).sum(1)
+    core_columns = [col for col in df if col.startswith('Percentile')]
+    core_columns = [col for col in core_columns if col.endswith(tuple(CORE_COLUMNS))]
+    core_weights = {k: v for k, v in USNEWS_WEIGHTS.items() if k in CORE_COLUMNS}
+    core_weights = list(core_weights.values())
+    df['Core Score'] = df[core_columns].mul(core_weights).sum(1)
+    return df
+
+def compute_ranks(df: pd.DataFrame) -> pd.DataFrame:
+    keys = tuple(USNEWS_WEIGHTS.keys())
+    for name in scalers.keys():
+        columns = [col for col in df if col.startswith(name)]
+        columns = [col for col in columns if col.endswith(keys)]
+        score_column = f'{name} Score'
+        rank_column = f'{name} Rank'
+        df[rank_column] = df[score_column].rank(method = 'min', ascending = False)
+    df['Core Rank'] = df['Core Score'].rank(method = 'min', ascending = False) 
     return df
     
 def export_remixed_rankings(df: pd.DataFrame) -> None:
     df.to_csv(EXPORTPATH)
     return
-
-def scale_columns(df: pd.DataFrame) -> pd.DataFrame:
-    for name, scaler in SCALERS.items():
-        print('test name scaler', name)
-        new_columns = []
-        scaler = scaler()
-        for column in USNEWSWEIGHTS.keys():
-            scaled_column = f'{name} {column}'
-            new_columns.append(scaled_column)
-            scaler.fit(df[column])
-            df[scaled_column] = scaler.transform(df[column])
-        score_column = f'{name} Score'
-        rank_column = f'{name} Rank'
-        weights = list(USNEWSWEIGHTS.values())
-        df[score_column] = df[new_columns].mul(weights).sum(1)
-        ranker = preprocessing.OrdinalEncoder()
-        ranker.fit(df[score_column])
-        df[rank_column] = ranker.transform(df[score_column])
-        return df 
-            
+        
 if __name__ == '__main__':
     pd.set_option('precision', 0)
     df = import_rankings_data()
@@ -161,7 +196,10 @@ if __name__ == '__main__':
     df = split_columns(df = df)
     df = force_numerical(df = df)
     df = compute_bar_ratio(df = df)
+    df = reverse_values(df = df)
     df = scale_columns(df = df)
+    df = compute_scores(df = df)
+    df = compute_ranks(df = df)
     export_remixed_rankings(df = df)
     
 
