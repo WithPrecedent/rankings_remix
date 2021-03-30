@@ -12,12 +12,14 @@ from typing import (Any, Callable, ClassVar, Dict, Hashable, Iterable, List,
     Type, Union)
 
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn import preprocessing
-import seaborn as sn
+import seaborn as sns
 
-FOLDER = pathlib.Path('..') / 'data' / 'rankings' 
-IMPORTPATH = pathlib.Path(FOLDER) /'2022rankings.csv'
-EXPORTPATH = pathlib.Path(FOLDER) / 'remixed_rankings.csv'
+DATA_FOLDER = pathlib.Path('..') / 'data' / 'rankings' 
+IMPORT_DATA_PATH = pathlib.Path(DATA_FOLDER) / '2022rankings.csv'
+EXPORT_DATA_PATH = pathlib.Path(DATA_FOLDER) / 'remixed_rankings.csv'
+VISUALS_FOLDER = pathlib.Path('..') / 'visuals' / 'rankings' 
 RENAMES = { 
     'Rank': 'USNews Rank',
     'Overall score': 'USNews Score',
@@ -68,29 +70,23 @@ CORE_COLUMNS = [
     'Practitioner Score',
     'GPA Estimated Median',
     'LSAT Estimated Median',
-    '10-Month Employed']  
-    
-# FINAL_COLUMNS = [
-#     'School',
-#     'Peer Score',
-#     'Practitioner Score',
-#     'GPA Estimated Median',
-#     'LSAT Estimate Median',
-#     'Acceptance Rate',
-#     'Immediate Employed',
-#     '10-Month Employed',
-#     'Bar Pass Ratio',
-#     'USNews Rank',
-#     'Adjusted USNews Score',
-#     'Normalized Rank',
-#     'Normalized Score',
-#     'MinMax Rank',
-#     'MinMax Score',
-#     'Ordinal Rank',
-#     'Ordinal Score']
+    '10-Month Employed']    
+RANK_COMPARISON_COLUMNS = [
+    'USNews Rank',
+    'School',
+    'Hidden Data Rank Boost',
+    'Aggregation Method Rank Boost',
+    'Questionable Data Categories Rank Boost']
+SCORE_COMPARISON_COLUMNS = [
+    'USNews Rank',
+    'School',
+    'USNews Score',
+    'Hidden Data Score Boost',
+    'Aggregation Method Score Boost',
+    'Questionable Data Categories Score Boost']
 
 def import_rankings_data() -> pd.DataFrame:
-    df = pd.read_csv(IMPORTPATH, encoding = 'windows-1252')
+    df = pd.read_csv(IMPORT_DATA_PATH, encoding = 'windows-1252')
     df = df.rename(columns = RENAMES)
     df = df[~df.eq('N/A').any(1)]
     df = df.dropna()
@@ -171,6 +167,7 @@ def compute_scores(df: pd.DataFrame) -> pd.DataFrame:
     df['Core Score'] = df[core_columns].mul(core_weights).sum(1)
     df = minmax_scale(df = df, source = 'Core Score', destination = 'Core Score Scaled')
     df = minmax_scale(df = df, source = 'USNews Score', destination = 'USNews Score Scaled')
+    df = minmax_scale(df = df, source = 'USNews Rank', destination = 'USNews Rank Scaled')
     return df
 
 def compute_ranks(df: pd.DataFrame) -> pd.DataFrame:
@@ -186,23 +183,49 @@ def compute_ranks(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_comparisons(df: pd.DataFrame) -> pd.DataFrame:
     df['Hidden Data Rank Boost'] = df['Ordinal Rank'] - df['USNews Rank']
-    df['Ranking Method Rank Boost'] = df['Percentile Rank'] - df['USNews Rank']
-    df['Questionable Category Rank Boost'] = df['Core Rank'] - df['USNews Rank']
+    df['Aggregation Method Rank Boost'] = df['Percentile Rank'] - df['USNews Rank']
+    df['Questionable Data Categories Rank Boost'] = df['Core Rank'] - df['USNews Rank']
     df['Hidden Data Score Boost'] = df['USNews Score Scaled'] - df['Ordinal Score Scaled'] 
-    df['Scoreing Method Score Boost'] = df['USNews Score Scaled'] - df['Percentile Score Scaled'] 
-    df['Questionable Category Score Boost'] = df['USNews Score Scaled'] - df['Core Score Scaled'] 
+    df['Aggregation Method Score Boost'] = df['USNews Score Scaled'] - df['Percentile Score Scaled'] 
+    df['Questionable Data Categories Score Boost'] = df['USNews Score Scaled'] - df['Core Score Scaled'] 
     return df
+  
+def visualize_distributions(df: pd.DataFrame) -> None:
+    distributions, axis = plt.subplots()
+    sns.distplot(df['USNews Score Scaled'], ax = axis, color = 'blue', label = 'USNews Score')
+    sns.distplot(df['USNews Rank Scaled'], ax = axis, color = 'orange', label = 'USNews Rank', axlabel = 'USNews Scores and Ranks (Common Scale)')
+    axis.legend()
+    axis.set_xlim([0, 1])
+    export_path = pathlib.Path(VISUALS_FOLDER) / 'distributions.png'
+    distributions.savefig(export_path)
+    plt.close()
+    return
 
-# def cluster_scores(df: pd.DataFrame) -> pd.DataFrame:
-    
-    
+def visualize_comparisons(df: pd.DataFrame) -> None:
+    public_scatter = sns.scatterplot(x = df['Ordinal Rank'], y = df['USNews Rank'], color = 'green')
+    plt.ylabel('USNews Public Data Rank')
+    public_scatter.set_xlim([df['USNews Rank'].min(), df['USNews Rank'].max()])
+    public_scatter.set_ylim([df['USNews Rank'].min(), df['USNews Rank'].max()])
+    export_path = pathlib.Path(VISUALS_FOLDER) / 'public_scatter.png'
+    public_scatter.figure.savefig(export_path)
+    plt.close()
+    score_comparison = sns.scatterplot(x = df['Percentile Score Scaled'], y = df['USNews Score'], label = 'Percentile', color = 'olive', alpha = 0.5)
+    score_comparison = sns.scatterplot(x = df['Core Score Scaled'], y = df['USNews Score'], label = 'Core Metrics', color = 'purple', alpha = 0.35)
+    score_comparison.set_xlim(0, 1)
+    score_comparison.set_ylim([df['USNews Score'].min() - 5, df['USNews Score'].max() + 5])
+    plt.xlabel('Alternative Scores')
+    export_path = pathlib.Path(VISUALS_FOLDER) / 'score_comparison.png'
+    score_comparison.figure.savefig(export_path)
+    plt.close()
+    return
     
 def export_remixed_rankings(df: pd.DataFrame) -> None:
-    df.to_csv(EXPORTPATH)
+    df.to_csv(EXPORT_DATA_PATH)
     return
         
 if __name__ == '__main__':
     pd.set_option('precision', 0)
+    sns.set_style('whitegrid')
     df = import_rankings_data()
     df = simplify_lower_ranks(df = df)
     df = split_columns(df = df)
@@ -213,5 +236,7 @@ if __name__ == '__main__':
     df = compute_scores(df = df)
     df = compute_ranks(df = df)
     df = add_comparisons(df = df)
+    visualize_distributions(df = df)
+    visualize_comparisons(df = df)
     export_remixed_rankings(df = df)
     
