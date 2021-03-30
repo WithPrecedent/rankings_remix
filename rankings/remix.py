@@ -72,15 +72,15 @@ CORE_COLUMNS = [
     'LSAT Estimated Median',
     '10-Month Employed']    
 RANK_COMPARISON_COLUMNS = [
-    'USNews Rank',
-    'School',
+    # 'USNews Rank',
+    # 'School',
     'Hidden Data Rank Boost',
     'Aggregation Method Rank Boost',
     'Questionable Data Categories Rank Boost']
 SCORE_COMPARISON_COLUMNS = [
-    'USNews Rank',
-    'School',
-    'USNews Score',
+    # 'USNews Rank',
+    # 'School',
+    # 'USNews Score',
     'Hidden Data Score Boost',
     'Aggregation Method Score Boost',
     'Questionable Data Categories Score Boost']
@@ -218,6 +218,12 @@ def visualize_comparisons(df: pd.DataFrame) -> None:
     score_comparison.figure.savefig(export_path)
     plt.close()
     return
+
+def rank_comparison_table(df: pd.DataFrame) -> None:
+    rank_data = df[RANK_COMPARISON_COLUMNS]
+    sns.heatmap(rank_data, annot = True, yticklabels = df['School'])
+    plt.show()
+    return
     
 def export_remixed_rankings(df: pd.DataFrame) -> None:
     df.to_csv(EXPORT_DATA_PATH)
@@ -238,5 +244,6 @@ if __name__ == '__main__':
     df = add_comparisons(df = df)
     visualize_distributions(df = df)
     visualize_comparisons(df = df)
+    rank_comparison_table(df = df)
     export_remixed_rankings(df = df)
     
