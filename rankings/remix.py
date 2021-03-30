@@ -6,16 +6,12 @@ License: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0)
 
 """
 from __future__ import annotations
-import dataclasses
-import itertools
 import pathlib
 from typing import (Any, Callable, ClassVar, Dict, Hashable, Iterable, List, 
     Mapping, MutableMapping, MutableSequence, Optional, Sequence, Set, Tuple, 
     Type, Union)
 
-import numpy as np
 import pandas as pd
-from pandas.core.frame import DataFrame
 from sklearn import preprocessing
 import seaborn as sn
 
@@ -50,7 +46,6 @@ FLOATS = [
     '10-Month Employed',
     'Bar Pass Rate',
     'Jurisdiction Bar Pass Rate',
-    # 'Bar Pass Ratio',
     'Percent with Loan']
 INTEGERS = [
     'USNews Rank',
@@ -150,7 +145,7 @@ def ordinal_scale(df: pd.DataFrame, source: str, destination: str) -> pd.DataFra
 
 scalers = {
     'Percentile': minmax_scale,
-    'Ranking': ordinal_scale}
+    'Ordinal': ordinal_scale}
     
 def scale_columns(df: pd.DataFrame) -> pd.DataFrame:
     for name, scaler in scalers.items():
@@ -165,13 +160,17 @@ def compute_scores(df: pd.DataFrame) -> pd.DataFrame:
         columns = [col for col in df if col.startswith(name)]
         columns = [col for col in columns if col.endswith(keys)]
         score_column = f'{name} Score'
+        scaled_score_column = f'{score_column} Scaled'
         weights = list(USNEWS_WEIGHTS.values())
         df[score_column] = df[columns].mul(weights).sum(1)
+        df = minmax_scale(df = df, source = score_column, destination = scaled_score_column)
     core_columns = [col for col in df if col.startswith('Percentile')]
     core_columns = [col for col in core_columns if col.endswith(tuple(CORE_COLUMNS))]
     core_weights = {k: v for k, v in USNEWS_WEIGHTS.items() if k in CORE_COLUMNS}
     core_weights = list(core_weights.values())
     df['Core Score'] = df[core_columns].mul(core_weights).sum(1)
+    df = minmax_scale(df = df, source = 'Core Score', destination = 'Core Score Scaled')
+    df = minmax_scale(df = df, source = 'USNews Score', destination = 'USNews Score Scaled')
     return df
 
 def compute_ranks(df: pd.DataFrame) -> pd.DataFrame:
@@ -184,6 +183,19 @@ def compute_ranks(df: pd.DataFrame) -> pd.DataFrame:
         df[rank_column] = df[score_column].rank(method = 'min', ascending = False)
     df['Core Rank'] = df['Core Score'].rank(method = 'min', ascending = False) 
     return df
+
+def add_comparisons(df: pd.DataFrame) -> pd.DataFrame:
+    df['Hidden Data Rank Boost'] = df['Ordinal Rank'] - df['USNews Rank']
+    df['Ranking Method Rank Boost'] = df['Percentile Rank'] - df['USNews Rank']
+    df['Questionable Category Rank Boost'] = df['Core Rank'] - df['USNews Rank']
+    df['Hidden Data Score Boost'] = df['USNews Score Scaled'] - df['Ordinal Score Scaled'] 
+    df['Scoreing Method Score Boost'] = df['USNews Score Scaled'] - df['Percentile Score Scaled'] 
+    df['Questionable Category Score Boost'] = df['USNews Score Scaled'] - df['Core Score Scaled'] 
+    return df
+
+# def cluster_scores(df: pd.DataFrame) -> pd.DataFrame:
+    
+    
     
 def export_remixed_rankings(df: pd.DataFrame) -> None:
     df.to_csv(EXPORTPATH)
@@ -200,6 +212,6 @@ if __name__ == '__main__':
     df = scale_columns(df = df)
     df = compute_scores(df = df)
     df = compute_ranks(df = df)
+    df = add_comparisons(df = df)
     export_remixed_rankings(df = df)
     
-
