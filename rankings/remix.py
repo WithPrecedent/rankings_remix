@@ -7,13 +7,9 @@ License: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import annotations
 import pathlib
-from typing import (Any, Callable, ClassVar, Dict, Hashable, Iterable, List, 
-    Mapping, MutableMapping, MutableSequence, Optional, Sequence, Set, Tuple, 
-    Type, Union)
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn import preprocessing
 import seaborn as sns
 
 DATA_FOLDER = pathlib.Path('..') / 'data' / 'rankings' 
@@ -29,8 +25,8 @@ RENAMES = {
     '2020 LSAT score 25th-75th percentile': 'LSAT',
     '2020 acceptance rate': 'Acceptance Rate',
     '2020 student/faculty ratio': 'Student/Faculty Ratio',
-    '2019 grads employed at graduationý': 'Immediate Employed',
-    '2019 grads employed 10 months after graduationý': '10-Month Employed',
+    '2019 grads employed at graduation²': 'Immediate Employed',
+    '2019 grads employed 10 months after graduation²': '10-Month Employed',
     'School\'s bar passage rate in jurisdiction': 'Bar Pass Rate',
     'Jurisdiction\'s overall bar passage rate': 'Jurisdiction Bar Pass Rate',
     'Propotion of 2020 J.D. graduates who borrowed at least one educational loan in law school': 'Percent with Loan',	
