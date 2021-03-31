@@ -55,7 +55,7 @@ INTEGERS = [
     'LSAT 75',
     'LSAT Estimated Median',
     'Average Debt']
-LOW_IS_HIGH = ['Acceptance Rate']
+LOW_IS_HIGH = ['Acceptance Rate', 'Student/Faculty Ratio']
 USNEWS_WEIGHTS = {
     'Peer Score': 0.25,
     'Practitioner Score': 0.15,
@@ -64,7 +64,8 @@ USNEWS_WEIGHTS = {
     'Acceptance Rate': .025,
     'Immediate Employed': 0.04,
     '10-Month Employed': 0.14,
-    'Bar Pass Ratio': 0.0225}
+    'Bar Pass Ratio': 0.0225,
+    'Student/Faculty Ratio': 0.02}
 CORE_COLUMNS = [
     'Peer Score',
     'Practitioner Score',
