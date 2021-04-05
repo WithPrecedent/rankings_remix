@@ -196,6 +196,12 @@ def add_comparisons(df: pd.DataFrame) -> pd.DataFrame:
                                          - df['Percent Score Scaled'])
     df['Questionable Data Categories Score Boost'] = (df['Percent Score Scaled'] 
                                                       - df['Core Score Scaled']) 
+    df['Total Rank Boost'] = (df['Hidden Data Rank Boost']
+                              + df['Standardization Rank Boost']
+                              + df['Questionable Data Categories Rank Boost'])
+    df['Total Score Boost'] = (df['Hidden Data Score Boost']
+                               + df['Standardization Score Boost']
+                               + df['Questionable Data Categories Score Boost'])
     return df
 
 def visualize_rank_versus_score(df: pd.DataFrame) -> None:
@@ -206,7 +212,7 @@ def visualize_rank_versus_score(df: pd.DataFrame) -> None:
     rank_score.set_ylim([df['US News Rank Adjusted'].min(), 
                          df['US News Rank Adjusted'].max()])
     rank_score.figure.suptitle(
-        'US News Rank Versus US News Score', 
+        'US News Rank vs. US News Score', 
         size = 16)
     plt.tight_layout()
     export_path = pathlib.Path(VISUALS_FOLDER) / 'rank_score.png'
@@ -231,7 +237,7 @@ def visualize_standardization_effects(df: pd.DataFrame) -> None:
                                         legend = False)
     axes[0].set_xlim([0, 1])
     axes[1].set_xlim([-3, 3])
-    plt.legend(title = 'Categories', 
+    distributions.figure.legend(title = 'Categories', 
                bbox_to_anchor = (1.01, 1), 
                borderaxespad = 0, 
                labels = list(USNEWS_WEIGHTS.keys()), 
@@ -256,8 +262,9 @@ def visualize_score_rank_distributions(df: pd.DataFrame) -> None:
                  color = 'orange', 
                  kde = True, 
                  label = 'US News Rank')
-    axis.set(xlabel = 'US News Scores and Ranks (common scale)')
+    axis.set(xlabel = 'US News Scores and Ranks (percent scale)')
     axis.set_xlim([0, 1])
+    plt.legend()
     plt.tight_layout()
     export_path = pathlib.Path(VISUALS_FOLDER) / 'score_rank_distributions.png'
     distributions.figure.savefig(export_path)
@@ -268,7 +275,7 @@ def visualize_comparisons(df: pd.DataFrame) -> None:
     public_scatter = sns.scatterplot(x = df['Standardized Rank'], 
                                      y = df['US News Rank'], 
                                      color = 'green')
-    plt.ylabel('US News Public Data Rank')
+    plt.xlabel('Estimated US News Rank Based on Public Data')
     public_scatter.set_xlim([df['US News Rank'].min(), 
                              df['US News Rank'].max()])
     public_scatter.set_ylim([df['US News Rank'].min(), 
@@ -308,12 +315,6 @@ def visualize_comparisons(df: pd.DataFrame) -> None:
     plt.close()
     return
 
-def rank_comparison_table(df: pd.DataFrame) -> None:
-    rank_data = df[RANK_COMPARISON_COLUMNS]
-    sns.heatmap(rank_data, annot = True, yticklabels = df['School'])
-    plt.show()
-    return
-    
 def export_remixed_rankings(df: pd.DataFrame) -> None:
     df.to_csv(EXPORT_DATA_PATH)
     return
@@ -334,12 +335,10 @@ if __name__ == '__main__':
     df = compute_scores(df = df)
     df = compute_ranks(df = df)
     df = add_comparisons(df = df)
-    visualize_rank_versus_score(df = df)
+    # visualize_rank_versus_score(df = df)
     visualize_standardization_effects(df = df)
     visualize_score_rank_distributions(df = only_ranked_df)
-    complete_data_df = df[df['US News Rank'] < 112]
-    complete_data_df = add_comparisons(df = complete_data_df)
-    visualize_comparisons(df = complete_data_df)
-    rank_comparison_table(df = df)
+    complete_data_df = add_comparisons(df = df)
+    visualize_comparisons(df = df)
     export_remixed_rankings(df = df)
     
