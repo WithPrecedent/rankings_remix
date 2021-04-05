@@ -79,6 +79,20 @@ CORE_COLUMNS = [
     '10-Month Employed',
     'Average Debt']    
 
+def minmax_scale(data: pd.Series, low_is_good: bool = False) -> pd.Series:
+    if low_is_good:
+        data = pd.Series(1 - data)
+    return preprocessing.minmax_scale(data)
+
+def standard_scale(data: pd.Series, low_is_good: bool = False) -> pd.Series:
+    if low_is_good:
+        data = pd.Series(1 - data)
+    return preprocessing.scale(data)
+
+scalers = {
+    'Percent': minmax_scale,
+    'Standardized': standard_scale}
+    
 def import_rankings_data() -> pd.DataFrame:
     df = pd.read_csv(IMPORT_DATA_PATH, encoding = 'windows-1252')
     df = df.rename(columns = RENAMES)
@@ -127,20 +141,6 @@ def ordinal_rank(df: pd.DataFrame,
                  method: str = 'max') -> pd.Series:
     return df[column].rank(method = method)
 
-def minmax_scale(data: pd.Series, low_is_good: bool = False) -> pd.Series:
-    if low_is_good:
-        data = pd.Series(1 - data)
-    return preprocessing.minmax_scale(data)
-
-def standard_scale(data: pd.Series, low_is_good: bool = False) -> pd.Series:
-    if low_is_good:
-        data = pd.Series(1 - data)
-    return preprocessing.scale(data)
-
-scalers = {
-    'Percent': minmax_scale,
-    'Standardized': standard_scale}
-    
 def scale_all_usnews_columns(df: pd.DataFrame) -> pd.DataFrame:
     for name, scaler in scalers.items():
         for column in USNEWS_WEIGHTS.keys():
@@ -198,6 +198,22 @@ def add_comparisons(df: pd.DataFrame) -> pd.DataFrame:
                                                       - df['Core Score Scaled']) 
     return df
 
+def visualize_rank_versus_score(df: pd.DataFrame) -> None:
+    rank_score = sns.scatterplot(x = df['US News Score'], 
+                                 y = df['US News Rank Adjusted'], 
+                                 color = 'aqua')   
+    rank_score.set_xlim([df['US News Score'].min(), df['US News Score'].max()])
+    rank_score.set_ylim([df['US News Rank Adjusted'].min(), 
+                         df['US News Rank Adjusted'].max()])
+    rank_score.figure.suptitle(
+        'US News Rank Versus US News Score', 
+        size = 16)
+    plt.tight_layout()
+    export_path = pathlib.Path(VISUALS_FOLDER) / 'rank_score.png'
+    rank_score.figure.savefig(export_path)
+    plt.close() 
+    return
+   
 def visualize_standardization_effects(df: pd.DataFrame) -> None:
     percent_columns = [f'Percent {key}' for key in USNEWS_WEIGHTS]
     standardized_columns = [f'Standardized {key}' for key in USNEWS_WEIGHTS]
@@ -318,11 +334,12 @@ if __name__ == '__main__':
     df = compute_scores(df = df)
     df = compute_ranks(df = df)
     df = add_comparisons(df = df)
+    visualize_rank_versus_score(df = df)
     visualize_standardization_effects(df = df)
     visualize_score_rank_distributions(df = only_ranked_df)
     complete_data_df = df[df['US News Rank'] < 112]
     complete_data_df = add_comparisons(df = complete_data_df)
     visualize_comparisons(df = complete_data_df)
-    # rank_comparison_table(df = df)
+    rank_comparison_table(df = df)
     export_remixed_rankings(df = df)
     
